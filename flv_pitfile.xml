@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Peach xmlns="http://phed.org/2008/Peach" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://phed.org/2008/Peach /peach/peach.xsd">
+
+	<!-- Import defaults for Peach instance -->
+	<Include ns="default" src="file:defaults.xml"/>
+
+	<!-- TODO: Create data model -->
+	<DataModel name="flvHeader">
+		<String name="flv_Signature" value="464C5601" valueType="hex" token="true" mutable="false"/>
+		<Flags name="HeadFlags" size="8">
+			<Flag name="dummy"  position="3" size="5"/>
+			<Flag name="audio"  position="2" size="1"/>
+			<Flag name="dummy2" position="1" size="1"/>
+			<Flag name="video"  position="0" size="1"/>
+		</Flags>
+		<Number name="dataoffset" value="9" size="32"/>
+		<Number name="zero" size="32"/>
+	</DataModel>
+
+	<DataModel name="tag">
+		<Choice maxOccurs="1">
+			<Block name="script">
+				<Number name="type" size="8" signed="false" endian="big" value="18" token="true" mutable="false"/>
+				<Number name="datasize" size="24" endian="big" signed="false"/>
+				<Number name="timestamp" size="24" endian="big" signed="false"/>
+				<Number name="timestampi" size="8" endian="big" signed="false"/>
+				<Number name="streamid" size="24" endian="big" signed="false"/>
+				<Number name="firstbyte" size="8" endian="big" signed="false"/>
+				<Blob name="data2" lengthType="calc" length="int(self.find('datasize').getInternalValue())-1"/>
+				<Number name="lastsize" size="32" endian="big" signed="false"/>
+			</Block>
+			
+			<Block name="audio">
+				<Number name="type" size="8" signed="false" endian="big" value="8" token="true" mutable="false"/>
+				<Number name="datasize1" size="24" endian="big" signed="false"/>
+				<Number name="timestamp" size="24" endian="big" signed="false"/>
+				<Number name="timestampi" size="8" endian="big" signed="false"/>
+				<Number name="streamid" size="24" endian="big" signed="false"/>
+				<Flags name="Flag3" size="8">
+					<Flag name="fmt" position="0" size="4"/>
+					<Flag name="sr" position="4" size="2"/>
+					<Flag name="bits" position="6" size="1"/>
+					<Flag name="channels" position="7" size="1"/>
+				</Flags>
+				<Block>
+					<Relation type="when" when="int(self.find('Flag3.fmt').getInternalValue()) == 10"/>
+					<Blob name="frmtype" length="1"/>
+					<Blob name="data1" lengthType="calc" length="int(self.find('datasize1').getInternalValue())-2"/>
+				</Block>
+				<Block>
+					<Relation type="when" when="int(self.find('Flag3.fmt').getInternalValue()) != 10"/>
+					<Blob name="data1" lengthType="calc" length="int(self.find('datasize1').getInternalValue())-1"/>
+				</Block>
+				<Number name="lastsize" size="32" endian="big" signed="false"/>
+			</Block>
+			
+			<Block name="video">
+				<Number name="type" size="8" signed="false" endian="big" value="9" token="true" mutable="false"/>
+				<Number name="datasize2" size="24" endian="big" signed="false"/>
+				<Number name="timestamp" size="24" endian="big" signed="false"/>
+				<Number name="timestampi" size="8" endian="big" signed="false"/>
+				<Number name="streamid" size="24" endian="big" signed="false"/>
+				<Flags name="Flag2" size="8">
+					<Flag name="frmtype" position="0" size="4"/>
+					<Flag name="codecid" position="4" size="4"/>
+				</Flags>
+				<Block>
+					<Relation type="when" when="int(self.find('Flag2.codecid').getInternalValue()) == 7"/>
+					<Blob name="pkttype" length="1"/>
+					<Blob name="compotime" length="3"/>
+					<Blob name="data" lengthType="calc" length="int(self.find('datasize2').getInternalValue())-5"/>
+				</Block>
+				<Block>
+					<Relation type="when" when="int(self.find('Flag2.codecid').getInternalValue()) != 7"/>
+					<Blob name="data" lengthType="calc" length="int(self.find('datasize2').getInternalValue())-1"/>
+				</Block>
+				<Number name="lastsize" size="32" endian="big" signed="false"/>
+			</Block>
+		</Choice>
+	</DataModel>
+	
+	<DataModel name="flv">
+		<Block ref="flvHeader"/>
+		<Choice maxOccurs="10000">
+			<Block ref="tag"/>
+		</Choice>
+	</DataModel>
+	
+	<StateModel name="TheState" initialState="Initial">
+		<State name="Initial"> 
+			<Action type="output">
+				<DataModel ref="flv"/>
+				<Data fileName="sample.flv" />
+			</Action>
+		</State>
+	</StateModel>
+
+	<Test name = "TheTest">
+       <StateModel ref = "TheState" />
+       <Publisher class="file.FilePerIteration">
+           <Param name="fileName" value="fuzz\%d.flv"/>
+       </Publisher>
+	</Test>
+  
+   <Run name = "DefaultRun">
+		<Test ref = "TheTest" />
+		<Logger class="logger.Filesystem">
+			<Param name="path" value="logtest\flv" />
+		</Logger>
+   </Run>
+
+</Peach>
